@@ -95,18 +95,18 @@ Developer Push ──▶ GitHub (main)
 3. **Cryptographic SHA-256 Hash-Chain Ledger**:
    * Every registration, transfer, and checkpoint scan is hashed with its previous block's hash.
    * Continuous tamper detection (`GET /verify`) flags the exact block index of any unauthorized database modification.
-3. **Atomic Transactions with Row-Level Locking**:
+4. **Atomic Transactions with Row-Level Locking**:
    * Shipment creation and stock deduction execute within a single PostgreSQL transaction block.
    * `SELECT ... FOR UPDATE` prevents double-allocation, overselling, and race conditions.
-4. **DevSecOps Security Gates**:
+5. **DevSecOps Security Gates**:
    * Static Application Security Testing (SonarQube).
    * Container image vulnerability scanning (Trivy).
    * Git secret and credential leak detection (Gitleaks).
    * Pinned dependency vulnerability enforcement (`npm audit`).
-5. **High Availability & Autoscaling**:
+6. **High Availability & Autoscaling**:
    * Kubernetes Deployment with zero-downtime RollingUpdates.
    * Horizontal Pod Autoscaler (HPA) scaling between 2 to 5 pods based on CPU and Memory load.
-6. **Centralized Logging & Observability**:
+7. **Centralized Logging & Observability**:
    * JSON log streaming via Winston to Logstash, indexed in Elasticsearch, and searchable in Kibana.
 
 ---
@@ -227,6 +227,7 @@ When concurrent shipment requests for the same inventory stock arrive simultaneo
 |--------|----------|---------------|-------------|
 | `POST` | `/auth/register` | Public | Register user (`ADMIN`, `MANUFACTURER`, `DISTRIBUTOR`, `WAREHOUSE`, `PHARMACY`) |
 | `POST` | `/auth/login` | Public | Authenticate user & return signed JWT token |
+| `POST` | `/auth/google` | Public | Authenticate via Google OAuth 2.0 ID token & issue signed JWT |
 | `GET` | `/auth/me` | Authenticated | Retrieve authenticated user profile & active role |
 
 ### Drug & Inventory Management
@@ -363,10 +364,10 @@ kubectl apply -f k8s/secret.yaml
 # 3. Deploy 2-replica application with health probes
 kubectl apply -f k8s/deployment.yaml
 
-# 3. Create NodePort service
+# 4. Create NodePort service
 kubectl apply -f k8s/service.yaml
 
-# 4. Apply Horizontal Pod Autoscaler (scales 2 to 5 pods)
+# 5. Apply Horizontal Pod Autoscaler (scales 2 to 5 pods)
 kubectl apply -f k8s/hpa.yaml
 ```
 
@@ -425,6 +426,8 @@ npm test
 * `tests/concurrency.test.js`: Row-level locking race-condition prevention under concurrent demand.
 * `tests/ledger.test.js`: Cryptographic hash-chain calculation and tamper detection.
 * `tests/verify.test.js`: Full-chain verification endpoints and security alerts.
+* `tests/hashChain.test.js`: In-memory and class-level SHA-256 genesis block, sequential chaining, and tampering unit tests.
+* `tests/frontend.test.js`: JSDOM-based XSS sanitization tests and dynamic role-based UI tab/form access rendering.
 
 <!-- ---
 
