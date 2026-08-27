@@ -19,92 +19,152 @@ async function seedDatabase() {
     const passwordHash = await bcrypt.hash('Password123!', salt);
 
     await withTransaction(async (client) => {
-      // 1. Seed Users (RBAC)
+      // 1. Seed Users (RBAC across all supply chain roles)
       const userRes = await client.query(`
         INSERT INTO users (name, email, password_hash, role)
         VALUES
           ('Dr. Alistair Vance (Admin)', 'admin@pharma.com', $1, 'ADMIN'),
-          ('PharmaCorp Manufacturing', 'mfg@pharma.com', $1, 'MANUFACTURER'),
+          ('PharmaCorp Global Biotech', 'mfg@pharma.com', $1, 'MANUFACTURER'),
+          ('Apex BioPharma Labs', 'apex@pharma.com', $1, 'MANUFACTURER'),
           ('FastLogistics Distribution', 'dist@pharma.com', $1, 'DISTRIBUTOR'),
-          ('Mumbai Central Warehouse', 'warehouse@pharma.com', $1, 'WAREHOUSE'),
-          ('City General Pharmacy', 'pharmacy@pharma.com', $1, 'PHARMACY')
+          ('TransGlobal ColdChain Logistics', 'logistics@pharma.com', $1, 'DISTRIBUTOR'),
+          ('Mumbai Central Cold Storage', 'warehouse@pharma.com', $1, 'WAREHOUSE'),
+          ('Delhi North Regional Depot', 'delhi.wh@pharma.com', $1, 'WAREHOUSE'),
+          ('Bangalore TechHub Storage', 'blr.wh@pharma.com', $1, 'WAREHOUSE'),
+          ('City General Hospital Pharmacy', 'pharmacy@pharma.com', $1, 'PHARMACY'),
+          ('Apollo MedCare Dispensary', 'apollo@pharma.com', $1, 'PHARMACY')
         ON CONFLICT (email) DO UPDATE SET updated_at = CURRENT_TIMESTAMP
         RETURNING id, name, email, role;
       `, [passwordHash]);
 
       const users = userRes.rows;
-      const mfgUser = users.find((u) => u.role === 'MANUFACTURER') || users[0];
-      const warehouseUser = users.find((u) => u.role === 'WAREHOUSE') || users[0];
+      const mfgUser = users.find((u) => u.email === 'mfg@pharma.com') || users[0];
+      const apexUser = users.find((u) => u.email === 'apex@pharma.com') || users[0];
+      const distUser = users.find((u) => u.email === 'dist@pharma.com') || users[0];
+      const warehouseUser = users.find((u) => u.email === 'warehouse@pharma.com') || users[0];
+      const delhiUser = users.find((u) => u.email === 'delhi.wh@pharma.com') || users[0];
 
-      // 2. Seed Drugs
+      // 2. Seed Drugs across multiple clinical categories
       const drugRes = await client.query(`
         INSERT INTO drugs (name, manufacturer, manufacturer_id, batch_id, expiry_date, description, status)
         VALUES
-          ('Aspirin 500mg', 'PharmaCorp', $1, 'BATCH-2026-001', '2028-12-31', 'Analgesic and anti-inflammatory medication', 'registered'),
-          ('Amoxicillin 250mg', 'PharmaCorp', $1, 'BATCH-2026-002', '2027-06-30', 'Broad-spectrum penicillin antibiotic', 'registered'),
-          ('Insulin Glargine 100IU', 'PharmaCorp', $1, 'BATCH-2026-003', '2026-12-31', 'Long-acting basal insulin for diabetes management', 'registered')
+          ('Paracetamol 650mg (Calpol)', 'PharmaCorp Global Biotech', $1, 'BATCH-2026-001', '2028-12-31', 'Analgesic and antipyretic for pain and fever relief', 'registered'),
+          ('Amoxicillin 500mg Trihydrate', 'PharmaCorp Global Biotech', $1, 'BATCH-2026-002', '2027-06-30', 'Broad-spectrum bactericidal penicillin antibiotic', 'registered'),
+          ('Insulin Glargine 100IU/ml', 'PharmaCorp Global Biotech', $1, 'BATCH-2026-003', '2026-12-31', 'Recombinant human insulin analog for diabetes management (Cold Chain 2-8°C)', 'registered'),
+          ('Remdesivir 100mg Lyophilized', 'Apex BioPharma Labs', $2, 'BATCH-2026-004', '2027-09-15', 'Broad-spectrum antiviral nucleoside ribonucleic acid polymerase inhibitor', 'registered'),
+          ('Azithromycin 500mg', 'Apex BioPharma Labs', $2, 'BATCH-2026-005', '2028-03-31', 'Macrolide antibacterial for respiratory tract infections', 'registered'),
+          ('Atorvastatin Calcium 20mg', 'Apex BioPharma Labs', $2, 'BATCH-2026-006', '2028-11-30', 'HMG-CoA reductase inhibitor for cardiovascular cholesterol reduction', 'registered')
         ON CONFLICT (batch_id) DO UPDATE SET updated_at = CURRENT_TIMESTAMP
         RETURNING id, name, batch_id;
-      `, [mfgUser.id]);
+      `, [mfgUser.id, apexUser.id]);
 
       const drugs = drugRes.rows;
 
-      // 3. Seed Inventory
+      // 3. Seed Inventory across 4 national fulfillment depots
+      const locations = [
+        { name: 'Mumbai Central Cold Storage', qty: 10000 },
+        { name: 'Delhi North Regional Depot', qty: 7500 },
+        { name: 'Bangalore TechHub Storage', qty: 5000 },
+        { name: 'Hyderabad Pharma Logistics Hub', qty: 3500 }
+      ];
+
       for (const drug of drugs) {
-        await client.query(`
-          INSERT INTO inventory (drug_id, location, quantity)
-          VALUES
-            ($1, 'Mumbai Central Depot', 5000),
-            ($1, 'Delhi Regional Warehouse', 2500),
-            ($1, 'Bangalore Distribution Hub', 1200)
-          ON CONFLICT (drug_id, location) DO UPDATE SET quantity = EXCLUDED.quantity;
-        `, [drug.id]);
+        for (const loc of locations) {
+          await client.query(`
+            INSERT INTO inventory (drug_id, location, quantity)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (drug_id, location) DO UPDATE SET quantity = EXCLUDED.quantity;
+          `, [drug.id, loc.name, loc.qty]);
+        }
       }
 
-      // 4. Seed Shipments & Events
-      const aspirin = drugs[0];
-      const shipmentRes = await client.query(`
-        INSERT INTO shipments (drug_id, drug_name, origin, destination, quantity, status, created_by)
-        VALUES
-          ($1, $2, 'Mumbai Central Depot', 'Delhi Regional Warehouse', 500, 'in-transit', $3),
-          ($1, $2, 'Delhi Regional Warehouse', 'City General Pharmacy', 150, 'delivered', $4)
-        RETURNING id, status, origin, destination;
-      `, [aspirin.id, aspirin.name, mfgUser.id, warehouseUser.id]);
+      // 4. Seed Shipments across different statuses
+      const shipmentsData = [
+        {
+          drug: drugs[0], // Paracetamol
+          origin: 'Mumbai Central Cold Storage',
+          dest: 'Delhi North Regional Depot',
+          qty: 1500,
+          status: 'in-transit',
+          createdBy: mfgUser.id,
+          events: [
+            { status: 'created', location: 'Mumbai Central Cold Storage', user: mfgUser.id },
+            { status: 'in-transit', location: 'Highway NH-48 Express Checkpoint', user: distUser.id }
+          ]
+        },
+        {
+          drug: drugs[2], // Insulin (Cold chain)
+          origin: 'Mumbai Central Cold Storage',
+          dest: 'City General Hospital Pharmacy',
+          qty: 400,
+          status: 'at-checkpoint',
+          createdBy: mfgUser.id,
+          events: [
+            { status: 'created', location: 'Mumbai Central Cold Storage', user: mfgUser.id },
+            { status: 'in-transit', location: 'Airport Cargo Terminal Mumbai', user: distUser.id },
+            { status: 'at-checkpoint', location: 'Temperature Log Checkpoint (3.4°C - Passed)', user: distUser.id }
+          ]
+        },
+        {
+          drug: drugs[3], // Remdesivir
+          origin: 'Delhi North Regional Depot',
+          dest: 'Apollo MedCare Dispensary',
+          qty: 250,
+          status: 'delivered',
+          createdBy: apexUser.id,
+          events: [
+            { status: 'created', location: 'Delhi North Regional Depot', user: apexUser.id },
+            { status: 'in-transit', location: 'Ring Road Transit Corridor', user: distUser.id },
+            { status: 'delivered', location: 'Apollo MedCare Dispensary Dock 2', user: delhiUser.id }
+          ]
+        },
+        {
+          drug: drugs[1], // Amoxicillin
+          origin: 'Bangalore TechHub Storage',
+          dest: 'City General Hospital Pharmacy',
+          qty: 800,
+          status: 'created',
+          createdBy: mfgUser.id,
+          events: [
+            { status: 'created', location: 'Bangalore TechHub Storage', user: mfgUser.id }
+          ]
+        }
+      ];
 
-      const [shipment1, shipment2] = shipmentRes.rows;
+      for (const s of shipmentsData) {
+        const sRes = await client.query(`
+          INSERT INTO shipments (drug_id, drug_name, origin, destination, quantity, status, created_by)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          RETURNING id;
+        `, [s.drug.id, s.drug.name, s.origin, s.dest, s.qty, s.status, s.createdBy]);
 
-      // Shipment 1 Events
-      await client.query(`
-        INSERT INTO shipment_events (shipment_id, status, location, updated_by)
-        VALUES
-          ($1, 'created', 'Mumbai Central Depot', $2),
-          ($1, 'in-transit', 'Highway NH-48 Checkpoint', $2);
-      `, [shipment1.id, mfgUser.id]);
+        const shipmentId = sRes.rows[0].id;
 
-      // Shipment 2 Events
-      await client.query(`
-        INSERT INTO shipment_events (shipment_id, status, location, updated_by)
-        VALUES
-          ($1, 'created', 'Delhi Regional Warehouse', $2),
-          ($1, 'in-transit', 'North Expressway Toll', $2),
-          ($1, 'delivered', 'City General Pharmacy', $2);
-      `, [shipment2.id, warehouseUser.id]);
+        for (const ev of s.events) {
+          await client.query(`
+            INSERT INTO shipment_events (shipment_id, status, location, updated_by)
+            VALUES ($1, $2, $3, $4);
+          `, [shipmentId, ev.status, ev.location, ev.user]);
+        }
+      }
 
-      // 5. Seed Ledger Entries for Demo Events
+      // 5. Seed Immutable Hash-Chain Ledger Entries
       await ledgerRepository.appendBlock({
-        eventType: 'SEED_INITIALIZATION',
+        eventType: 'SUPPLY_CHAIN_INITIALIZED',
         entityType: 'SYSTEM',
         entityId: '0',
         payload: {
-          message: 'Demo seed data successfully generated with users, drug catalog, inventory, and initial shipments',
-          usersCount: users.length,
-          drugsCount: drugs.length,
+          message: 'Comprehensive Enterprise Pharma Supply Chain network loaded',
+          organizations: users.length,
+          catalogProducts: drugs.length,
+          activeWarehouses: locations.length,
+          shipmentsTracked: shipmentsData.length
         },
       }, client);
     });
 
-    logger.info('Database seeded successfully with default users, drugs, inventory, and shipments!');
-    logger.info('Default credentials for testing: email: admin@pharma.com | password: Password123!');
+    logger.info('Database seeded successfully with 10 users, 6 pharmaceutical products, 24 inventory depots, 4 live shipments, and immutable ledger chain!');
+    logger.info('Default credentials: email: admin@pharma.com | password: Password123!');
   } catch (error) {
     logger.error('Database seeding failed', { error: error.message, stack: error.stack });
   }
