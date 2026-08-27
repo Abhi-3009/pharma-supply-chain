@@ -38,9 +38,11 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://accounts.google.com'],
         fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", 'https://accounts.google.com'],
+        frameSrc: ["'self'", 'https://accounts.google.com'],
+        connectSrc: ["'self'", 'https://accounts.google.com'],
         imgSrc: ["'self'", 'data:'],
       },
     },

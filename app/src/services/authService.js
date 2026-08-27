@@ -103,6 +103,67 @@ class AuthService {
   }
 
   /**
+   * Login user via Google OAuth JWT
+   */
+  async googleLogin({ token }) {
+    if (!token) {
+      const err = new Error('Missing Google token');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const { OAuth2Client } = require('google-auth-library');
+    const client = new OAuth2Client(config.GOOGLE_CLIENT_ID);
+    const crypto = require('crypto');
+
+    try {
+      const ticket = await client.verifyIdToken({
+        idToken: token,
+        audience: config.GOOGLE_CLIENT_ID,
+      });
+
+      const payload = ticket.getPayload();
+      const email = payload.email;
+      const name = payload.name;
+
+      let user = await userRepository.findByEmail(email);
+      
+      if (!user) {
+        // Create user with PHARMACY role and random password hash to satisfy NOT NULL constraint
+        const salt = await bcrypt.genSalt(10);
+        const randomPassword = crypto.randomBytes(32).toString('hex');
+        const passwordHash = await bcrypt.hash(randomPassword, salt);
+        
+        user = await userRepository.create({
+          name,
+          email,
+          passwordHash,
+          role: 'PHARMACY',
+        });
+        logger.info('New user registered via Google OAuth', { userId: user.id, email: user.email });
+      }
+
+      const appToken = this.generateToken(user);
+      logger.info('User logged in via Google OAuth successfully', { userId: user.id, email: user.email, role: user.role });
+
+      return {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        },
+        token: appToken,
+      };
+    } catch (error) {
+      logger.error('Google token verification failed', { error: error.message });
+      const err = new Error('Invalid Google token');
+      err.statusCode = 401;
+      throw err;
+    }
+  }
+
+  /**
    * Generate signed JWT
    */
   generateToken(user) {

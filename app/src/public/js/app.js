@@ -9,6 +9,38 @@ const API = '';
 let currentUser = null;
 let authToken = localStorage.getItem('pharma_token') || null;
 
+// ======================== UTILITIES ========================
+function escapeHTML(str) {
+  if (typeof str !== 'string') return str;
+  return str.replace(/[&<>'"]/g, 
+    tag => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#39;',
+      '"': '&quot;'
+    }[tag] || tag)
+  );
+}
+
+// Global Loading Bar Control
+function setGlobalLoading(isLoading) {
+  const bar = document.getElementById('globalLoadingBar');
+  if (bar) {
+    bar.style.opacity = isLoading ? '1' : '0';
+    bar.style.width = isLoading ? '100%' : '0%';
+  }
+}
+
+// Role-based Access Control Matrix
+const ROLE_PERMISSIONS = {
+  ADMIN: ['drugs', 'inventory', 'shipments', 'verify', 'ledger'],
+  MANUFACTURER: ['drugs', 'inventory', 'shipments', 'ledger'],
+  DISTRIBUTOR: ['inventory', 'shipments', 'ledger'],
+  WAREHOUSE: ['inventory', 'shipments', 'ledger'],
+  PHARMACY: ['inventory', 'shipments', 'verify', 'ledger']
+};
+
 function getAuthHeaders() {
   const headers = { 'Content-Type': 'application/json' };
   if (authToken) {
@@ -30,12 +62,20 @@ function showToast(message, type = 'info') {
 
 // ======================== AUTHENTICATION ========================
 function openAuthModal() {
-  document.getElementById('authModal').style.display = 'flex';
+  const modal = document.getElementById('authModal');
+  if (modal) {
+    modal.style.display = 'flex';
+  }
 }
+window.openAuthModal = openAuthModal;
 
 function closeAuthModal() {
-  document.getElementById('authModal').style.display = 'none';
+  const modal = document.getElementById('authModal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
 }
+window.closeAuthModal = closeAuthModal;
 
 function showAuthTab(tab) {
   const loginForm = document.getElementById('loginForm');
@@ -55,12 +95,14 @@ function showAuthTab(tab) {
     tabRegBtn.className = 'btn btn-sm btn-primary';
   }
 }
+window.showAuthTab = showAuthTab;
 
 async function checkAuthStatus() {
   if (!authToken) {
     updateAuthUI(null);
     return;
   }
+  setGlobalLoading(true);
   try {
     const res = await fetch(`${API}/auth/me`, { headers: getAuthHeaders() });
     if (res.ok) {
@@ -72,6 +114,45 @@ async function checkAuthStatus() {
     }
   } catch {
     updateAuthUI(null);
+  } finally {
+    setGlobalLoading(false);
+  }
+}
+
+function applyRoleBasedAccess(user) {
+  const tabs = document.querySelectorAll('.nav-tab');
+  const mainAppContainer = document.querySelector('.app-container .stats-bar');
+  const mainAppNav = document.querySelector('.app-container .nav-tabs');
+  const tabContents = document.querySelectorAll('.tab-content');
+  
+  if (!user) {
+    if (mainAppContainer) mainAppContainer.style.display = 'none';
+    if (mainAppNav) mainAppNav.style.display = 'none';
+    tabContents.forEach(c => c.classList.remove('active'));
+    // Ensure we show auth modal if not authenticated
+    openAuthModal();
+    return;
+  }
+  
+  closeAuthModal();
+  if (mainAppContainer) mainAppContainer.style.display = 'grid';
+  if (mainAppNav) mainAppNav.style.display = 'flex';
+  
+  const allowedTabs = ROLE_PERMISSIONS[user.role] || [];
+  let firstVisibleTab = null;
+
+  tabs.forEach(tab => {
+    const tabId = tab.dataset.tab;
+    if (allowedTabs.includes(tabId)) {
+      tab.style.display = 'flex';
+      if (!firstVisibleTab) firstVisibleTab = tab;
+    } else {
+      tab.style.display = 'none';
+    }
+  });
+
+  if (firstVisibleTab) {
+    firstVisibleTab.click();
   }
 }
 
@@ -95,6 +176,8 @@ function updateAuthUI(user) {
     authBtn.style.display = 'inline-block';
     logoutBtn.style.display = 'none';
   }
+  
+  applyRoleBasedAccess(user);
 }
 
 function logout() {
@@ -104,6 +187,7 @@ function logout() {
   updateAuthUI(null);
   showToast('Logged out successfully', 'info');
 }
+window.logout = logout;
 
 // Auth Forms
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -161,6 +245,33 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     showToast('Network error during registration', 'error');
   }
 });
+
+// Google OAuth Callback
+async function handleGoogleResponse(response) {
+  const googleJwt = response.credential;
+  
+  try {
+    const res = await fetch('/auth/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: googleJwt })
+    });
+    
+    const data = await res.json();
+    if (res.ok) {
+      localStorage.setItem('pharma_token', data.token);
+      closeAuthModal();
+      showToast('Google sign in successful', 'success');
+      window.location.reload();
+    } else {
+      showToast(data.message || data.error || 'Google sign in failed', 'error');
+    }
+  } catch (err) {
+    console.error(err);
+    showToast('Network error during Google sign in', 'error');
+  }
+}
+window.handleGoogleResponse = handleGoogleResponse;
 
 // ======================== TAB NAVIGATION ========================
 document.querySelectorAll('.nav-tab').forEach((tab) => {
@@ -252,8 +363,8 @@ async function loadDrugs() {
     invSelect.innerHTML = '<option value="">Select registered drug</option>';
     shipSelect.innerHTML = '<option value="">Select drug</option>';
     data.drugs.forEach((d) => {
-      invSelect.innerHTML += `<option value="${d.id}">${d.name} (${d.batch_id || d.batchId})</option>`;
-      shipSelect.innerHTML += `<option value="${d.id}" data-name="${d.name}">${d.name} (${d.batch_id || d.batchId})</option>`;
+      invSelect.innerHTML += `<option value="${escapeHTML(d.id)}">${escapeHTML(d.name)} (${escapeHTML(d.batch_id || d.batchId)})</option>`;
+      shipSelect.innerHTML += `<option value="${escapeHTML(d.id)}" data-name="${escapeHTML(d.name)}">${escapeHTML(d.name)} (${escapeHTML(d.batch_id || d.batchId)})</option>`;
     });
 
     let html = `
@@ -274,11 +385,11 @@ async function loadDrugs() {
     data.drugs.forEach((drug) => {
       html += `
         <tr>
-          <td><strong>${drug.name}</strong></td>
-          <td>${drug.manufacturer}</td>
-          <td><code>${drug.batch_id || drug.batchId}</code></td>
-          <td>${drug.expiry_date ? String(drug.expiry_date).slice(0, 10) : drug.expiryDate}</td>
-          <td><span class="badge badge-success">${drug.status || 'registered'}</span></td>
+          <td><strong>${escapeHTML(drug.name)}</strong></td>
+          <td>${escapeHTML(drug.manufacturer)}</td>
+          <td><code>${escapeHTML(drug.batch_id || drug.batchId)}</code></td>
+          <td>${escapeHTML(drug.expiry_date ? String(drug.expiry_date).slice(0, 10) : drug.expiryDate)}</td>
+          <td><span class="badge badge-registered">${escapeHTML(drug.status || 'registered')}</span></td>
         </tr>
       `;
     });
@@ -345,10 +456,10 @@ async function loadInventory() {
     data.inventory.forEach((item) => {
       html += `
         <tr>
-          <td><strong>${item.drug_name || 'Medicine'}</strong></td>
-          <td><code>${item.batch_id || '—'}</code></td>
-          <td>${item.location}</td>
-          <td><strong style="color:#34d399;font-size:1.05rem">${item.quantity}</strong></td>
+          <td><strong>${escapeHTML(item.drug_name || 'Medicine')}</strong></td>
+          <td><code>${escapeHTML(item.batch_id || '—')}</code></td>
+          <td>${escapeHTML(item.location)}</td>
+          <td><strong style="color:var(--accent-emerald);font-size:1.05rem">${item.quantity}</strong></td>
         </tr>
       `;
     });
@@ -418,14 +529,14 @@ async function loadShipments() {
     `;
 
     data.shipments.forEach((s) => {
-      const statusClass = s.status === 'delivered' ? 'badge-success' : s.status === 'in-transit' ? 'badge-primary' : 'badge-warning';
+      const statusClass = s.status === 'delivered' ? 'badge-delivered' : s.status === 'in-transit' ? 'badge-in-transit' : 'badge-at-checkpoint';
       html += `
         <tr>
-          <td><strong>${s.drug_name || s.drugName}</strong></td>
-          <td>${s.origin} ➔ ${s.destination}</td>
+          <td><strong>${escapeHTML(s.drug_name || s.drugName)}</strong></td>
+          <td>${escapeHTML(s.origin)} ➔ ${escapeHTML(s.destination)}</td>
           <td>${s.quantity}</td>
-          <td><span class="badge ${statusClass}">${s.status}</span></td>
-          <td><button class="btn btn-sm btn-outline" onclick="openShipmentModal('${s.id}')">Manage</button></td>
+          <td><span class="badge ${statusClass}">${escapeHTML(s.status)}</span></td>
+          <td><button class="btn btn-sm btn-outline" onclick="openShipmentModal('${escapeHTML(s.id)}')">Manage</button></td>
         </tr>
       `;
     });
@@ -447,15 +558,15 @@ async function openShipmentModal(shipmentId) {
     let historyHtml = '<div style="margin-bottom:12px;font-size:0.9rem"><strong>Audit Trail:</strong><ul style="padding-left:20px;margin-top:6px">';
     if (s.statusHistory) {
       s.statusHistory.forEach((h) => {
-        historyHtml += `<li><strong>${h.status}</strong> at ${h.location} — <small>${new Date(h.timestamp).toLocaleString()}</small></li>`;
+        historyHtml += `<li><strong>${escapeHTML(h.status)}</strong> at ${escapeHTML(h.location)} — <small>${escapeHTML(new Date(h.timestamp).toLocaleString())}</small></li>`;
       });
     }
     historyHtml += '</ul></div>';
 
     document.getElementById('shipmentModalBody').innerHTML = `
-      <p><strong>Shipment ID:</strong> <code>${s.id}</code></p>
-      <p><strong>Drug:</strong> ${s.drug_name || s.drugName} (${s.quantity} units)</p>
-      <p><strong>Route:</strong> ${s.origin} ➔ ${s.destination}</p>
+      <p><strong>Shipment ID:</strong> <code>${escapeHTML(s.id)}</code></p>
+      <p><strong>Drug:</strong> ${escapeHTML(s.drug_name || s.drugName)} (${s.quantity} units)</p>
+      <p><strong>Route:</strong> ${escapeHTML(s.origin)} ➔ ${escapeHTML(s.destination)}</p>
       ${historyHtml}
     `;
 
@@ -499,25 +610,30 @@ document.getElementById('statusUpdateForm').addEventListener('submit', async (e)
 // ======================== VERIFY & TAMPER SIMULATOR ========================
 async function verifyChain() {
   const resultDiv = document.getElementById('verifyResult');
+  const btn = document.getElementById('verifyBtn');
+  
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Verifying...';
+  
   resultDiv.innerHTML = '<div style="margin-top:20px;color:var(--text-secondary)">🔍 Recalculating SHA-256 block hashes across entire database...</div>';
 
   try {
-    const res = await fetch(`${API}/verify`);
+    const res = await fetch(`${API}/verify`, { headers: getAuthHeaders() });
     const data = await res.json();
     const v = data.verification;
 
-    if (v.valid) {
+    if (v && v.valid) {
       resultDiv.innerHTML = `
-        <div class="card" style="margin-top:20px;border-color:rgba(16,185,129,0.5);background:rgba(16,185,129,0.05)">
-          <div style="font-size:1.2rem;color:#34d399;font-weight:600">✅ Supply Chain Integrity Verified</div>
+        <div class="card verify-valid" style="margin-top:20px;">
+          <div style="font-size:1.2rem;color:var(--accent-emerald);font-weight:600">✅ Supply Chain Integrity Verified</div>
           <p style="margin-top:8px">All <strong>${v.totalBlocks}</strong> cryptographic blocks were recalculated and verified with 100% cryptographic continuity. No database tampering detected.</p>
         </div>
       `;
     } else {
       resultDiv.innerHTML = `
-        <div class="card" style="margin-top:20px;border-color:rgba(239,68,68,0.5);background:rgba(239,68,68,0.05)">
-          <div style="font-size:1.2rem;color:#f87171;font-weight:600">❌ ALERT: Supply Chain Integrity Compromised!</div>
-          <p style="margin-top:8px">Tampered / invalid block indices detected in database: <strong>${v.invalidBlocks.join(', ')}</strong></p>
+        <div class="card verify-invalid" style="margin-top:20px;">
+          <div style="font-size:1.2rem;color:var(--accent-rose);font-weight:600">❌ ALERT: Supply Chain Integrity Compromised!</div>
+          <p style="margin-top:8px">Tampered / invalid block indices detected in database: <strong>${escapeHTML((v && v.invalidBlocks ? v.invalidBlocks.join(', ') : 'Unknown'))}</strong></p>
           <p style="font-size:0.85rem;color:var(--text-secondary)">The hash link between blocks was broken due to an unauthorized direct modification in the database records.</p>
         </div>
       `;
@@ -525,6 +641,9 @@ async function verifyChain() {
     refreshStats();
   } catch {
     showToast('Failed to perform verification', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '🔍 Verify Chain Integrity';
   }
 }
 
@@ -560,19 +679,19 @@ async function loadLedger() {
     data.chain.forEach((block) => {
       const isGenesis = block.block_index === 0;
       html += `
-        <div class="card" style="padding:16px;border-left:4px solid ${isGenesis ? '#6366f1' : '#10b981'}">
+        <div class="card" style="padding:16px;border-left:4px solid ${isGenesis ? 'var(--accent-indigo)' : 'var(--accent-emerald)'}">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <span class="badge ${isGenesis ? 'badge-primary' : 'badge-success'}">Block #${block.block_index} — ${block.event_type}</span>
-            <small style="color:var(--text-secondary)">${new Date(block.created_at).toLocaleString()}</small>
+            <span class="badge ${isGenesis ? 'badge-registered' : 'badge-delivered'}">Block #${block.block_index} — ${escapeHTML(block.event_type)}</span>
+            <small style="color:var(--text-secondary)">${escapeHTML(new Date(block.created_at).toLocaleString())}</small>
           </div>
           <div style="font-size:0.85rem;margin-bottom:6px">
-            <span style="color:var(--text-secondary)">Previous Hash:</span> <code style="word-break:break-all">${block.previous_hash}</code>
+            <span style="color:var(--text-secondary)">Previous Hash:</span> <code style="word-break:break-all">${escapeHTML(block.previous_hash)}</code>
           </div>
           <div style="font-size:0.85rem;margin-bottom:6px">
-            <span style="color:var(--text-secondary)">Current Hash:</span> <code style="word-break:break-all;color:#34d399">${block.hash}</code>
+            <span style="color:var(--text-secondary)">Current Hash:</span> <code style="word-break:break-all;color:var(--accent-emerald)">${escapeHTML(block.hash)}</code>
           </div>
-          <div style="font-size:0.85rem;background:rgba(0,0,0,0.3);padding:8px;border-radius:6px;margin-top:8px">
-            <pre style="margin:0;font-size:0.8rem;white-space:pre-wrap">${JSON.stringify(block.payload, null, 2)}</pre>
+          <div style="font-size:0.85rem;background:var(--bg-primary);padding:8px;border-radius:6px;margin-top:8px;border:1px solid var(--border-glass)">
+            <pre style="margin:0;font-size:0.8rem;white-space:pre-wrap;color:var(--text-primary)">${escapeHTML(JSON.stringify(block.payload, null, 2))}</pre>
           </div>
         </div>
       `;
@@ -586,7 +705,20 @@ async function loadLedger() {
 
 // Initial load
 window.addEventListener('DOMContentLoaded', () => {
+  const authBtn = document.getElementById('authBtn');
+  if (authBtn) {
+    authBtn.addEventListener('click', openAuthModal);
+  }
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', logout);
+  }
   checkAuthStatus();
   loadDrugs();
   refreshStats();
 });
+
+// Export for testing
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { escapeHTML, applyRoleBasedAccess, ROLE_PERMISSIONS, checkAuthStatus };
+}

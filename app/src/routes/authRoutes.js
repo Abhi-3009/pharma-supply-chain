@@ -10,6 +10,9 @@ router.post('/register', authController.register);
 // POST /auth/login
 router.post('/login', authController.login);
 
+// POST /auth/google
+router.post('/google', authController.googleLogin);
+
 // GET /auth/me
 router.get('/me', authMiddleware, authController.me);
 

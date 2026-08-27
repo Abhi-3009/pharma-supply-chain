@@ -6,8 +6,10 @@
   <meta name="description" content="Secure Pharmaceutical Supply Chain Management with PostgreSQL Transactions, RBAC, and Persistent SHA-256 Hash-Chain Ledger">
   <title>Pharma Supply Chain — Enterprise Dashboard</title>
   <link rel="stylesheet" href="/css/style.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
+  <div id="globalLoadingBar" style="position:fixed;top:0;left:0;height:3px;background:var(--accent-indigo);width:0%;transition:width 0.3s ease, opacity 0.3s ease;z-index:9999;opacity:0;"></div>
   <div class="toast-container" id="toastContainer"></div>
 
   <div class="app-container">
@@ -26,7 +28,7 @@
     </header>
 
     <!-- Stats Bar -->
-    <div class="stats-bar">
+    <div class="stats-bar" style="display:none;">
       <div class="stat-card"><span class="stat-icon">💊</span><div class="stat-label">Registered Drugs</div><div class="stat-value" id="statDrugs">0</div></div>
       <div class="stat-card"><span class="stat-icon">🏢</span><div class="stat-label">Inventory Locations</div><div class="stat-value" id="statInventory">0</div></div>
       <div class="stat-card"><span class="stat-icon">🚚</span><div class="stat-label">Active Shipments</div><div class="stat-value" id="statShipments">0</div></div>
@@ -35,7 +37,7 @@
     </div>
 
     <!-- Navigation Tabs -->
-    <nav class="nav-tabs">
+    <nav class="nav-tabs" style="display:none;">
       <button class="nav-tab active" data-tab="drugs">💊 Drugs</button>
       <button class="nav-tab" data-tab="inventory">🏢 Inventory</button>
       <button class="nav-tab" data-tab="shipments">🚚 Shipments</button>
@@ -167,9 +169,30 @@
       <form id="loginForm">
         <div class="form-group"><label class="form-label">Email Address</label><input class="form-input" id="loginEmail" type="email" placeholder="user@pharma.com" required></div>
         <div class="form-group" style="margin-top:10px"><label class="form-label">Password</label><input class="form-input" id="loginPassword" type="password" placeholder="••••••••" required></div>
-        <div class="btn-group" style="margin-top:20px">
-          <button type="submit" class="btn btn-primary">Sign In</button>
-          <button type="button" class="btn btn-outline" onclick="closeAuthModal()">Close</button>
+        <div class="btn-group" style="margin-top:20px;flex-direction:column;gap:12px;">
+          <div style="display:flex;gap:10px;">
+            <button type="submit" class="btn btn-primary" style="flex:1;">Sign In</button>
+            <button type="button" class="btn btn-outline" onclick="closeAuthModal()">Close</button>
+          </div>
+          
+          <div style="text-align:center;color:var(--text-muted);font-size:0.8rem;margin:8px 0;">— OR —</div>
+          
+          <div id="g_id_onload"
+               data-client_id="263990397402-mjk2qrtqv1n9qk1oviismpqnahg878ba.apps.googleusercontent.com"
+               data-context="signin"
+               data-ux_mode="popup"
+               data-callback="handleGoogleResponse"
+               data-auto_prompt="false">
+          </div>
+          <div class="g_id_signin"
+               data-type="standard"
+               data-shape="rectangular"
+               data-theme="outline"
+               data-text="signin_with"
+               data-size="large"
+               data-logo_alignment="left"
+               style="display:flex;justify-content:center;">
+          </div>
         </div>
       </form>
 
@@ -195,6 +218,6 @@
     </div>
   </div>
 
-  <script src="/js/app.js?v=4"></script>
+  <script src="/js/app.js?v=6"></script>
 </body>
 </html>

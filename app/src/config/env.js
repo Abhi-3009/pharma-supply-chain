@@ -6,6 +6,7 @@ module.exports = {
   LOG_LEVEL: process.env.LOG_LEVEL || 'info',
   JWT_SECRET: process.env.JWT_SECRET || 'pharma-dev-secret-key-change-in-production',
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '24h',
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '263990397402-mjk2qrtqv1n9qk1oviismpqnahg878ba.apps.googleusercontent.com',
   DATABASE_URL: process.env.DATABASE_URL || '',
   PG: {
     host: process.env.PGHOST || 'localhost',
