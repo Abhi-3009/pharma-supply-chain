@@ -42,3 +42,8 @@ trivy-report.txt
 
 # Ansible Vault
 .vault_pass
+
+# Internal documentation
+SETUP_GUIDE.md
+WALKTHROUGH.md
+INTERVIEW_NOTES.md
