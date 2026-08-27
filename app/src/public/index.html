@@ -48,7 +48,7 @@
     <!-- Tab: Drugs -->
     <div class="tab-content active" id="tab-drugs">
       <div class="grid-2">
-        <div class="card">
+        <div class="card" id="drugFormCard">
           <div class="card-header"><div class="card-title">💊 Register New Drug</div></div>
           <form id="drugForm" class="form-grid">
             <div class="form-group"><label class="form-label">Drug Name</label><input class="form-input" id="drugName" placeholder="e.g. Aspirin 500mg" required></div>
@@ -69,7 +69,7 @@
     <!-- Tab: Inventory -->
     <div class="tab-content" id="tab-inventory">
       <div class="grid-2">
-        <div class="card">
+        <div class="card" id="inventoryFormCard">
           <div class="card-header"><div class="card-title">📥 Restock Inventory</div></div>
           <form id="inventoryForm" class="form-grid">
             <div class="form-group"><label class="form-label">Select Drug</label><select class="form-select" id="invDrugSelect" required><option value="">Select registered drug</option></select></div>
@@ -88,7 +88,7 @@
     <!-- Tab: Shipments -->
     <div class="tab-content" id="tab-shipments">
       <div class="grid-2">
-        <div class="card">
+        <div class="card" id="shipmentFormCard">
           <div class="card-header"><div class="card-title">🚚 Create Shipment (Atomic Transaction)</div></div>
           <form id="shipmentForm" class="form-grid">
             <div class="form-group"><label class="form-label">Select Drug</label><select class="form-select" id="shipDrugSelect" required><option value="">Select drug</option></select></div>
@@ -218,6 +218,6 @@
     </div>
   </div>
 
-  <script src="/js/app.js?v=6"></script>
+  <script src="/js/app.js?v=7"></script>
 </body>
 </html>

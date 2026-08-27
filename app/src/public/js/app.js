@@ -32,13 +32,25 @@ function setGlobalLoading(isLoading) {
   }
 }
 
+// Button Loading State Control
+function setButtonLoading(btn, isLoading, originalText) {
+  if (!btn) return;
+  if (isLoading) {
+    btn.disabled = true;
+    btn.innerHTML = `<div class="spinner" style="width:14px;height:14px;border-width:2px;border-top-color:currentColor"></div> ${originalText}`;
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }
+}
+
 // Role-based Access Control Matrix
 const ROLE_PERMISSIONS = {
-  ADMIN: ['drugs', 'inventory', 'shipments', 'verify', 'ledger'],
-  MANUFACTURER: ['drugs', 'inventory', 'shipments', 'ledger'],
-  DISTRIBUTOR: ['inventory', 'shipments', 'ledger'],
-  WAREHOUSE: ['inventory', 'shipments', 'ledger'],
-  PHARMACY: ['inventory', 'shipments', 'verify', 'ledger']
+  ADMIN: { tabs: ['drugs', 'inventory', 'shipments', 'verify', 'ledger'], forms: ['drugFormCard', 'inventoryFormCard', 'shipmentFormCard'] },
+  MANUFACTURER: { tabs: ['drugs', 'inventory', 'shipments', 'ledger'], forms: ['drugFormCard', 'shipmentFormCard'] },
+  DISTRIBUTOR: { tabs: ['inventory', 'shipments', 'ledger'], forms: ['shipmentFormCard'] },
+  WAREHOUSE: { tabs: ['inventory', 'shipments', 'ledger'], forms: ['inventoryFormCard', 'shipmentFormCard'] },
+  PHARMACY: { tabs: ['drugs', 'inventory', 'shipments', 'verify', 'ledger'], forms: [] }
 };
 
 function getAuthHeaders() {
@@ -138,7 +150,10 @@ function applyRoleBasedAccess(user) {
   if (mainAppContainer) mainAppContainer.style.display = 'grid';
   if (mainAppNav) mainAppNav.style.display = 'flex';
   
-  const allowedTabs = ROLE_PERMISSIONS[user.role] || [];
+  const permissions = ROLE_PERMISSIONS[user.role] || { tabs: [], forms: [] };
+  const allowedTabs = permissions.tabs;
+  const allowedForms = permissions.forms;
+  
   let firstVisibleTab = null;
 
   tabs.forEach(tab => {
@@ -148,6 +163,15 @@ function applyRoleBasedAccess(user) {
       if (!firstVisibleTab) firstVisibleTab = tab;
     } else {
       tab.style.display = 'none';
+    }
+  });
+
+  // Hide forms based on role
+  const allForms = ['drugFormCard', 'inventoryFormCard', 'shipmentFormCard'];
+  allForms.forEach(formId => {
+    const formEl = document.getElementById(formId);
+    if (formEl) {
+      formEl.style.display = allowedForms.includes(formId) ? 'block' : 'none';
     }
   });
 
@@ -192,9 +216,11 @@ window.logout = logout;
 // Auth Forms
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const btn = e.target.querySelector('button[type="submit"]');
   const email = document.getElementById('loginEmail').value.trim();
   const password = document.getElementById('loginPassword').value;
 
+  setButtonLoading(btn, true, 'Sign In');
   try {
     const res = await fetch(`${API}/auth/login`, {
       method: 'POST',
@@ -214,16 +240,20 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     }
   } catch {
     showToast('Network error during login', 'error');
+  } finally {
+    setButtonLoading(btn, false, 'Sign In');
   }
 });
 
 document.getElementById('registerForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const btn = e.target.querySelector('button[type="submit"]');
   const name = document.getElementById('regName').value.trim();
   const email = document.getElementById('regEmail').value.trim();
   const password = document.getElementById('regPassword').value;
   const role = document.getElementById('regRole').value;
 
+  setButtonLoading(btn, true, 'Register Account');
   try {
     const res = await fetch(`${API}/auth/register`, {
       method: 'POST',
@@ -243,6 +273,8 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     }
   } catch {
     showToast('Network error during registration', 'error');
+  } finally {
+    setButtonLoading(btn, false, 'Register Account');
   }
 });
 
@@ -319,6 +351,7 @@ async function refreshStats() {
 // ======================== DRUG MANAGEMENT ========================
 document.getElementById('drugForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const btn = e.target.querySelector('button[type="submit"]');
   const body = {
     name: document.getElementById('drugName').value.trim(),
     manufacturer: document.getElementById('drugMfg').value.trim(),
@@ -326,6 +359,8 @@ document.getElementById('drugForm').addEventListener('submit', async (e) => {
     expiryDate: document.getElementById('drugExpiry').value,
     description: document.getElementById('drugDesc').value.trim(),
   };
+  
+  setButtonLoading(btn, true, 'Register Drug');
   try {
     const res = await fetch(`${API}/drugs`, {
       method: 'POST',
@@ -343,6 +378,8 @@ document.getElementById('drugForm').addEventListener('submit', async (e) => {
     }
   } catch {
     showToast('Network error while registering drug', 'error');
+  } finally {
+    setButtonLoading(btn, false, 'Register Drug');
   }
 });
 
@@ -404,10 +441,12 @@ async function loadDrugs() {
 // ======================== INVENTORY MANAGEMENT ========================
 document.getElementById('inventoryForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const btn = e.target.querySelector('button[type="submit"]');
   const drugId = document.getElementById('invDrugSelect').value;
   const location = document.getElementById('invLocation').value.trim();
   const quantity = parseInt(document.getElementById('invQuantity').value, 10);
 
+  setButtonLoading(btn, true, 'Add Stock');
   try {
     const res = await fetch(`${API}/inventory/stock`, {
       method: 'POST',
@@ -425,6 +464,8 @@ document.getElementById('inventoryForm').addEventListener('submit', async (e) =>
     }
   } catch {
     showToast('Network error while updating stock', 'error');
+  } finally {
+    setButtonLoading(btn, false, 'Add Stock');
   }
 });
 
@@ -474,6 +515,7 @@ async function loadInventory() {
 // ======================== SHIPMENTS ========================
 document.getElementById('shipmentForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const btn = e.target.querySelector('button[type="submit"]');
   const select = document.getElementById('shipDrugSelect');
   const drugId = select.value;
   const drugName = select.options[select.selectedIndex].dataset.name || 'Medicine';
@@ -481,6 +523,7 @@ document.getElementById('shipmentForm').addEventListener('submit', async (e) => 
   const destination = document.getElementById('shipDest').value.trim();
   const quantity = parseInt(document.getElementById('shipQty').value, 10);
 
+  setButtonLoading(btn, true, 'Create Shipment');
   try {
     const res = await fetch(`${API}/shipments`, {
       method: 'POST',
@@ -499,6 +542,8 @@ document.getElementById('shipmentForm').addEventListener('submit', async (e) => 
     }
   } catch {
     showToast('Network error while creating shipment', 'error');
+  } finally {
+    setButtonLoading(btn, false, 'Create Shipment');
   }
 });
 
@@ -582,10 +627,12 @@ function closeModal() {
 
 document.getElementById('statusUpdateForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const btn = e.target.querySelector('button[type="submit"]');
   const shipmentId = document.getElementById('modalShipmentId').value;
   const status = document.getElementById('modalStatusValue').value;
   const location = document.getElementById('modalLocationValue').value.trim();
 
+  setButtonLoading(btn, true, 'Update Status');
   try {
     const res = await fetch(`${API}/shipments/${shipmentId}/status`, {
       method: 'PUT',
@@ -604,6 +651,8 @@ document.getElementById('statusUpdateForm').addEventListener('submit', async (e)
     }
   } catch {
     showToast('Network error updating status', 'error');
+  } finally {
+    setButtonLoading(btn, false, 'Update Status');
   }
 });
 
