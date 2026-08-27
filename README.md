@@ -419,9 +419,9 @@ npm test
 * `tests/ledger.test.js`: Cryptographic hash-chain calculation and tamper detection.
 * `tests/verify.test.js`: Full-chain verification endpoints and security alerts.
 
----
+<!-- ---
 
 ## 📄 License
 This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
-© 2026 **Abhijeet Rai**. All Rights Reserved.
+© 2026 **Abhijeet Rai**. All Rights Reserved. -->
