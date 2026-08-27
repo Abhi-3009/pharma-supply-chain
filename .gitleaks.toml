@@ -1,0 +1,35 @@
+# Gitleaks Configuration
+# Secrets detection for the DevSecOps pipeline
+# Docs: https://github.com/gitleaks/gitleaks
+
+title = "Pharma Supply Chain Gitleaks Config"
+
+[extend]
+# Use the default gitleaks rules as a base
+useDefault = true
+
+# Custom allowlist — files/paths to exclude from scanning
+[allowlist]
+  description = "Allowlisted files and paths"
+  paths = [
+    '''node_modules''',
+    '''\.venv''',
+    '''coverage''',
+    '''logs''',
+    '''\.git''',
+    '''package-lock\.json''',
+  ]
+
+# Additional custom rules (optional)
+[[rules]]
+  id = "pharma-api-key"
+  description = "Pharma API Key"
+  regex = '''(?i)pharma[_-]?api[_-]?key\s*[:=]\s*['"]?([a-zA-Z0-9_\-]{20,})['"]?'''
+  secretGroup = 1
+  tags = ["pharma", "api-key"]
+
+[[rules]]
+  id = "database-connection-string"
+  description = "Database Connection String"
+  regex = '''(?i)(mongodb|postgres|mysql|redis):\/\/[^\s'"]+'''
+  tags = ["database", "connection"]

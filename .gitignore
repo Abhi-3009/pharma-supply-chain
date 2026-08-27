@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+.venv/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Coverage
+coverage/
+
+# Environment files
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+build/
+
+# Docker
+docker-compose.override.yml
+
+# Reports
+dependency-check-report/
+gitleaks-report.json
+trivy-report.txt
+
+# SonarQube
+.scannerwork/
+
+# Ansible Vault
+.vault_pass
