@@ -42,9 +42,15 @@ spec:
             - name: PGPORT
               value: "5432"
             - name: PGUSER
-              value: "postgres"
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: username
             - name: PGPASSWORD
-              value: "postgres"
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: password
             - name: PGDATABASE
               value: "pharma_db"
             - name: USE_IN_MEMORY_DB

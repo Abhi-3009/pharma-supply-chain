@@ -15,6 +15,7 @@
     mode: '0644'
   loop:
     - ../../../k8s/namespace.yaml
+    - ../../../k8s/secret.yaml
     - ../../../k8s/deployment.yaml
     - ../../../k8s/service.yaml
 
@@ -26,6 +27,9 @@
 
 - name: Apply Kubernetes namespace
   command: kubectl apply -f /opt/pharma-app/k8s/namespace.yaml
+
+- name: Apply Kubernetes secret
+  command: kubectl apply -f /opt/pharma-app/k8s/secret.yaml
 
 - name: Apply Kubernetes deployment
   command: kubectl apply -f /opt/pharma-app/k8s/deployment.yaml
