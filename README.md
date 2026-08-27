@@ -85,10 +85,14 @@ Developer Push ──▶ GitHub (main)
 
 ## ✨ Key Features & Business Value
 
-1. **Role-Based Access Control (RBAC)**:
+1. **Role-Based Access Control (RBAC) & Authentication**:
    * 5 discrete roles: `ADMIN`, `MANUFACTURER`, `DISTRIBUTOR`, `WAREHOUSE`, `PHARMACY`.
-   * Enforced via JWT cryptographic validation and route middleware.
-2. **Cryptographic SHA-256 Hash-Chain Ledger**:
+   * Enforced via JWT cryptographic validation, backend route middleware, and dynamic client-side UI rendering.
+   * Google OAuth 2.0 Integration for seamless enterprise Single Sign-On (SSO).
+2. **Premium Enterprise UI/UX**:
+   * Modern Dashboard with Glassmorphism (backdrop filters), vibrant color schemes, and fluid micro-animations.
+   * Comprehensive loading states and tactile feedback for all atomic supply chain transactions.
+3. **Cryptographic SHA-256 Hash-Chain Ledger**:
    * Every registration, transfer, and checkpoint scan is hashed with its previous block's hash.
    * Continuous tamper detection (`GET /verify`) flags the exact block index of any unauthorized database modification.
 3. **Atomic Transactions with Row-Level Locking**:
@@ -353,7 +357,10 @@ Deploy all Kubernetes resources in order:
 # 1. Create pharma-app namespace
 kubectl apply -f k8s/namespace.yaml
 
-# 2. Deploy 2-replica application with health probes
+# 2. Deploy Secure Kubernetes Secrets (Database Credentials)
+kubectl apply -f k8s/secret.yaml
+
+# 3. Deploy 2-replica application with health probes
 kubectl apply -f k8s/deployment.yaml
 
 # 3. Create NodePort service
