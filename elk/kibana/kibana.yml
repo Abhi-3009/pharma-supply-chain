@@ -1,0 +1,22 @@
+# Kibana Configuration
+# Connects to Elasticsearch and configures the Kibana dashboard
+
+server.name: pharma-kibana
+server.host: "0.0.0.0"
+server.port: 5601
+
+# Elasticsearch connection
+elasticsearch.hosts: ["http://elasticsearch:9200"]
+
+# Monitoring
+monitoring.ui.container.elasticsearch.enabled: true
+
+# Logging
+logging.dest: stdout
+logging.verbose: false
+
+# Security (disabled for development)
+xpack.security.enabled: false
+
+# Default index pattern
+# After first run, create index pattern: pharma-logs-*
