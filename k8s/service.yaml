@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pharma-app-service
+  namespace: pharma-app
+  labels:
+    app: pharma-supply-chain
+spec:
+  type: NodePort
+  sessionAffinity: ClientIP
+  selector:
+    app: pharma-supply-chain
+  ports:
+    - protocol: TCP
+      port: 3000          # Service port
+      targetPort: 3000    # Container port
+      nodePort: 30080     # External access port
