@@ -1,0 +1,109 @@
+---
+# Ansible Playbook: Deploy Pharma Supply Chain to Kubernetes
+# Usage: ansible-playbook -i inventory.ini deploy.yml
+
+- name: Deploy Pharma Supply Chain Application
+  hosts: k8s_master
+  become: no
+  vars:
+    docker_image: "codestack123/pharma-supply-chain"
+    docker_tag: "latest"
+    k8s_namespace: "pharma-app"
+    app_name: "pharma-supply-chain"
+
+  vars_files:
+    - "group_vars/all/vault.yml"
+
+  tasks:
+    # --------------------------------------------------
+    # Test Ansible Vault
+    # --------------------------------------------------
+    - name: Test Ansible Vault Decryption
+      debug:
+        msg: "Successfully decrypted vault! Secret key starts with: {{ app_secret_key[:5] }}***"
+      tags: [test_vault]
+    # --------------------------------------------------
+    # Pre-deployment: Pull latest Docker image
+    # --------------------------------------------------
+    - name: Pull latest Docker image
+      docker_image:
+        name: "{{ docker_image }}:{{ docker_tag }}"
+        source: pull
+        force_source: yes
+      tags: [pull]
+
+    # --------------------------------------------------
+    # --------------------------------------------------
+    # Create Kubernetes namespace
+    # --------------------------------------------------
+    - name: Create Kubernetes namespace
+      command: "kubectl apply -f {{ playbook_dir }}/../k8s/namespace.yaml"
+      register: ns_result
+      changed_when: "'created' in ns_result.stdout or 'configured' in ns_result.stdout"
+      tags: [deploy]
+
+    # --------------------------------------------------
+    # Update deployment image tag
+    # --------------------------------------------------
+    - name: Update deployment manifest with image tag
+      replace:
+        path: "{{ playbook_dir }}/../k8s/deployment.yaml"
+        regexp: 'image:.*'
+        replace: "image: {{ docker_image }}:{{ docker_tag }}"
+      tags: [deploy]
+
+    # --------------------------------------------------
+    # Apply Kubernetes deployment
+    # --------------------------------------------------
+    - name: Apply Kubernetes deployment
+      command: "kubectl apply -f {{ playbook_dir }}/../k8s/deployment.yaml"
+      register: deploy_result
+      changed_when: "'created' in deploy_result.stdout or 'configured' in deploy_result.stdout"
+      tags: [deploy]
+
+    # --------------------------------------------------
+    # Apply Kubernetes service
+    # --------------------------------------------------
+    - name: Apply Kubernetes service
+      command: "kubectl apply -f {{ playbook_dir }}/../k8s/service.yaml"
+      register: svc_result
+      changed_when: "'created' in svc_result.stdout or 'configured' in svc_result.stdout"
+      tags: [deploy]
+
+    # --------------------------------------------------
+    # Apply Kubernetes HPA
+    # --------------------------------------------------
+    - name: Apply Kubernetes Horizontal Pod Autoscaler
+      command: "kubectl apply -f {{ playbook_dir }}/../k8s/hpa.yaml"
+      register: hpa_result
+      changed_when: "'created' in hpa_result.stdout or 'configured' in hpa_result.stdout"
+      tags: [deploy]
+
+    # --------------------------------------------------
+    # Wait for deployment rollout
+    # --------------------------------------------------
+    - name: Wait for deployment rollout to complete
+      command: kubectl rollout status deployment/pharma-app -n {{ k8s_namespace }} --timeout=120s
+      register: rollout_result
+      tags: [deploy]
+
+    - name: Display rollout status
+      debug:
+        msg: "{{ rollout_result.stdout }}"
+      tags: [deploy]
+
+    # --------------------------------------------------
+    # Post-deployment: Verify application health
+    # --------------------------------------------------
+    - name: Verify application health
+      command: "kubectl exec -n {{ k8s_namespace }} deployment/pharma-app -- wget -qO- http://localhost:3000/health"
+      register: health_result
+      retries: 5
+      delay: 10
+      until: health_result.rc == 0 and '"healthy"' in health_result.stdout
+      tags: [verify]
+
+    - name: Display health check result
+      debug:
+        msg: "Application health status: {{ health_result.stdout }}"
+      tags: [verify]

@@ -1,0 +1,43 @@
+---
+# Role: pharma-deploy
+# Tasks for deploying the Pharma Supply Chain application
+
+- name: Ensure deployment directory exists
+  file:
+    path: /opt/pharma-app
+    state: directory
+    mode: '0755'
+
+- name: Copy Kubernetes manifests
+  copy:
+    src: "{{ item }}"
+    dest: /opt/pharma-app/k8s/
+    mode: '0644'
+  loop:
+    - ../../../k8s/namespace.yaml
+    - ../../../k8s/deployment.yaml
+    - ../../../k8s/service.yaml
+
+- name: Pull latest Docker image
+  docker_image:
+    name: "{{ docker_image | default('codestack123/pharma-supply-chain') }}:{{ docker_tag | default('latest') }}"
+    source: pull
+    force_source: yes
+
+- name: Apply Kubernetes namespace
+  command: kubectl apply -f /opt/pharma-app/k8s/namespace.yaml
+
+- name: Apply Kubernetes deployment
+  command: kubectl apply -f /opt/pharma-app/k8s/deployment.yaml
+
+- name: Apply Kubernetes service
+  command: kubectl apply -f /opt/pharma-app/k8s/service.yaml
+
+- name: Wait for rollout completion
+  command: kubectl rollout status deployment/pharma-app -n pharma-app --timeout=120s
+  register: rollout
+  changed_when: false
+
+- name: Print deployment status
+  debug:
+    msg: "{{ rollout.stdout }}"
