@@ -1,4 +1,4 @@
-# 🏥 Enterprise Pharmaceutical Supply Chain with Blockchain Hash-Chain Ledger & DevSecOps CI/CD
+# 🏥 PharmaChain — Secure Supply Chain & DevSecOps Platform
 
 [![CI/CD Pipeline](https://img.shields.io/badge/Jenkins-CI%2FCD%20Pipeline-blue?logo=jenkins&logoColor=white)](https://www.jenkins.io/)
 [![Node.js](https://img.shields.io/badge/Node.js-v26%20LTS-green?logo=node.js&logoColor=white)](https://nodejs.org/)
@@ -29,7 +29,6 @@ An enterprise-grade, production-ready pharmaceutical supply chain management and
 - [Centralized Observability (ELK Stack)](#-centralized-observability-elk-stack)
 - [Ansible Automation & Vault Security](#-ansible-automation--vault-security)
 - [Testing & Quality Assurance](#-testing--quality-assurance)
-- [Architecture FAQ & Design Defense](#-architecture-faq--design-defense)
 - [License](#-license)
 
 ---
@@ -419,19 +418,6 @@ npm test
 * `tests/concurrency.test.js`: Row-level locking race-condition prevention under concurrent demand.
 * `tests/ledger.test.js`: Cryptographic hash-chain calculation and tamper detection.
 * `tests/verify.test.js`: Full-chain verification endpoints and security alerts.
-
----
-
-## 💡 Architecture FAQ & Design Defense
-
-### Q: Why a Modular Monolith instead of Microservices?
-> **A:** Pharmaceutical supply chain operations (stock deduction, shipment creation, ledger hashing) require strict ACID atomicity. In microservices, distributed transactions (Sagas/2PC) introduce eventual consistency anomalies and network latency. A modular monolith backed by PostgreSQL guarantees immediate transaction consistency, zero network partition overhead, and simpler operations while keeping cleanly separated domain boundaries.
-
-### Q: How do you eliminate race conditions and double-spending?
-> **A:** We utilize PostgreSQL row-level locking (`SELECT ... FOR UPDATE`) within an explicit database transaction block. When concurrent requests hit the same inventory record, the second transaction blocks until the first completes, ensuring it evaluates the true, updated remaining quantity.
-
-### Q: What is the purpose of the SHA-256 Hash-Chain Ledger?
-> **A:** It provides **tamper-evident data integrity**. Every supply chain event is cryptographically linked to the previous event block. If an attacker or rogue administrator modifies any record in the PostgreSQL database, the hash verification algorithm immediately detects the discrepancy and flags the exact corrupted block index.
 
 ---
 
