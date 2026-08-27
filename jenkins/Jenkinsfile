@@ -1,0 +1,277 @@
+pipeline {
+    agent any
+
+    tools {
+        nodejs 'NodeJS-26'
+    }
+
+    environment {
+        DOCKER_IMAGE = "codestack123/pharma-supply-chain"
+        DOCKER_TAG = "${BUILD_NUMBER}"
+        SONARQUBE_URL = "http://sonarqube:9000"
+        SCANNER_HOME = tool 'SonarQubeScanner'
+    }
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+    }
+
+    stages {
+
+        // ============================================================
+        // STAGE 1: Clone Repository
+        // ============================================================
+        stage('Clone Repository') {
+            steps {
+                echo '📦 Cloning source code...'
+                checkout scm
+            }
+        }
+
+        // ============================================================
+        // STAGE 2: Install Dependencies
+        // ============================================================
+        stage('Install Dependencies') {
+            steps {
+                echo '📥 Installing Node.js dependencies...'
+                dir('app') {
+                    sh 'npm ci'
+                }
+            }
+        }
+
+        // ============================================================
+        // STAGE 3: Code Linting (ESLint)
+        // ============================================================
+        stage('Lint') {
+            steps {
+                echo '🔍 Running ESLint for code quality...'
+                dir('app') {
+                    sh 'npm run lint'
+                }
+            }
+        }
+
+        // ============================================================
+        // STAGE 4: Unit Tests (Jest)
+        // ============================================================
+        stage('Unit Tests') {
+            steps {
+                echo '🧪 Running unit tests with coverage...'
+                dir('app') {
+                    sh 'npm run test:coverage'
+                }
+            }
+            post {
+                always {
+                    // Archive test results and coverage
+                    publishHTML(target: [
+                        allowMissing: true,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'app/coverage/lcov-report',
+                        reportFiles: 'index.html',
+                        reportName: 'Coverage Report'
+                    ])
+                }
+            }
+        }
+
+        // ============================================================
+        // STAGE 5: SAST — Static Application Security Testing (SonarQube)
+        // ============================================================
+        stage('SAST - SonarQube Analysis') {
+            steps {
+                echo '🔒 Running Static Application Security Testing (SAST)...'
+                dir('app') {
+                    withSonarQubeEnv('SonarQube') {
+                        sh """${SCANNER_HOME}/bin/sonar-scanner \
+                          -Dsonar.nodejs.executable=\$(which node)"""
+                    }
+                }
+            }
+        }
+
+        stage('SAST - Quality Gate') {
+            steps {
+                echo '🚦 Waiting for SonarQube Quality Gate result...'
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        // ============================================================
+        // STAGE 6: Dependency Vulnerability Scanning
+        // ============================================================
+        stage('Dependency Scan') {
+            steps {
+                echo '🔒 Scanning dependencies for known vulnerabilities...'
+                dir('app') {
+                    // npm audit — fails build on high or critical vulnerabilities
+                    sh 'npm audit --audit-level=high'
+
+                    // OWASP Dependency-Check (if available)
+                    sh '''
+                        if command -v dependency-check.sh >/dev/null 2>&1; then
+                            dependency-check.sh \
+                                --project "pharma-supply-chain" \
+                                --scan . \
+                                --format HTML \
+                                --format JSON \
+                                --out dependency-check-report \
+                                --failOnCVSS 7
+                        else
+                            echo "ℹ️ OWASP Dependency-Check not installed, evaluated npm audit"
+                        fi
+                    '''
+                }
+            }
+            post {
+                always {
+                    // Archive dependency scan reports
+                    archiveArtifacts artifacts: 'app/dependency-check-report/**', allowEmptyArchive: true
+                }
+            }
+        }
+
+        // ============================================================
+        // STAGE 7: Secrets Detection (Gitleaks)
+        // ============================================================
+        stage('Secrets Detection') {
+            steps {
+                echo '🔒 Scanning for leaked secrets and credentials...'
+                sh '''
+                    if command -v gitleaks &> /dev/null; then
+                        gitleaks detect --source . --report-path gitleaks-report.json --report-format json -v --exit-code 1
+                    else
+                        echo "⚠️ Gitleaks binary not found on worker node — ensure Gitleaks is installed in Jenkins agent image"
+                        exit 1
+                    fi
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true
+                }
+            }
+        }
+
+        // ============================================================
+        // STAGE 8: Docker Build
+        // ============================================================
+        stage('Docker Build') {
+            steps {
+                echo '🐳 Building Docker image...'
+                sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} -f docker/Dockerfile ."
+                sh "docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest"
+            }
+        }
+
+        // ============================================================
+        // STAGE 9: Container Image Scan (Trivy)
+        // ============================================================
+        stage('Container Image Scan') {
+            steps {
+                echo '🔒 Scanning Docker image for vulnerabilities with Trivy...'
+                sh '''
+                    if command -v trivy &> /dev/null; then
+                        trivy image \
+                            --severity HIGH,CRITICAL \
+                            --format table \
+                            --output trivy-report.txt \
+                            ${DOCKER_IMAGE}:${DOCKER_TAG}
+
+                        trivy image \
+                            --severity CRITICAL \
+                            --exit-code 1 \
+                            ${DOCKER_IMAGE}:${DOCKER_TAG}
+                    else
+                        echo "⚠️ Trivy binary not found on worker node — ensure Trivy is installed in Jenkins agent image"
+                        exit 1
+                    fi
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'trivy-report.txt', allowEmptyArchive: true
+                }
+            }
+        }
+
+        // ============================================================
+        // STAGE 10: Push to DockerHub
+        // ============================================================
+        stage('Push to DockerHub') {
+            steps {
+                echo '📤 Pushing Docker image to DockerHub...'
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-credentials',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
+                        docker push ${DOCKER_IMAGE}:latest
+                        docker logout
+                    '''
+                }
+            }
+        }
+
+        // ============================================================
+        // STAGE 11: Deploy to Kubernetes (via Ansible)
+        // ============================================================
+        stage('Deploy to Kubernetes') {
+            steps {
+                echo '🚀 Deploying to Kubernetes cluster via Ansible...'
+                withCredentials([string(
+                    credentialsId: 'ansible-vault-password',
+                    variable: 'VAULT_PASSWORD'
+                )]) {
+                    sh '''
+                        # Update the image tag in the deployment manifest
+                        sed -i "s|image:.*|image: ${DOCKER_IMAGE}:${DOCKER_TAG}|g" k8s/deployment.yaml
+
+                        # Write vault password securely to temp file, run playbook, and clean up immediately
+                        VAULT_FILE=\$(mktemp)
+                        echo "\$VAULT_PASSWORD" > "\$VAULT_FILE"
+                        chmod 600 "\$VAULT_FILE"
+
+                        trap 'rm -f "\$VAULT_FILE"' EXIT
+
+                        ansible-playbook -i ansible/inventory.ini ansible/deploy.yml --vault-password-file "\$VAULT_FILE"
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '''
+            ✅ ═══════════════════════════════════════════════
+               Pipeline completed SUCCESSFULLY!
+               Image: ${DOCKER_IMAGE}:${DOCKER_TAG}
+               All security gates passed.
+            ═══════════════════════════════════════════════
+            '''
+        }
+        failure {
+            echo '''
+            ❌ ═══════════════════════════════════════════════
+               Pipeline FAILED!
+               Check the stage logs above for details.
+            ═══════════════════════════════════════════════
+            '''
+        }
+        always {
+            // Clean up Docker images to save space
+            sh "docker rmi ${DOCKER_IMAGE}:${DOCKER_TAG} || true"
+            cleanWs()
+        }
+    }
+}
