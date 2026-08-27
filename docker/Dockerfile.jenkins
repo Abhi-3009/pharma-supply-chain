@@ -1,0 +1,12 @@
+# Custom Jenkins image with libatomic1 installed
+# This avoids Node.js "libatomic.so.1: cannot open shared object file" errors on ARM64/Apple Silicon.
+FROM jenkins/jenkins:lts-jdk17
+
+USER root
+
+# Install libatomic1 (required by modern Node.js versions on aarch64)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libatomic1 && \
+    rm -rf /var/lib/apt/lists/*
+
+USER jenkins
