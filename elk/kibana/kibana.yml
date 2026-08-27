@@ -5,3 +5,4 @@ server.port: 5601
 
 # Elasticsearch connection
 elasticsearch.hosts: ["http://elasticsearch:9200"]
+w
