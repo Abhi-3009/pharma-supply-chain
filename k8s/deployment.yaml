@@ -36,6 +36,18 @@ spec:
               value: "3000"
             - name: LOG_LEVEL
               value: "info"
+            - name: PGHOST
+              value: "host.minikube.internal"
+            - name: PGPORT
+              value: "5432"
+            - name: PGUSER
+              value: "postgres"
+            - name: PGPASSWORD
+              value: "postgres"
+            - name: PGDATABASE
+              value: "pharma_db"
+            - name: USE_IN_MEMORY_DB
+              value: "true"
           resources:
             requests:
               cpu: "100m"
