@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Secure Pharmaceutical Supply Chain Management with PostgreSQL Transactions, RBAC, and Persistent SHA-256 Hash-Chain Ledger">
+  <title>Pharma Supply Chain — Enterprise Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div class="app-container">
+    <!-- Hero & Auth Header -->
+    <header class="hero">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div class="hero-badge"><span class="pulse"></span> DevSecOps & PostgreSQL Secured</div>
+        <div id="authStatusBadge" style="display:flex;align-items:center;gap:10px">
+          <span id="userRoleBadge" class="badge" style="background:rgba(99,102,241,0.2);color:#818cf8;border:1px solid rgba(99,102,241,0.4);padding:4px 12px;border-radius:20px;font-size:0.85rem">Guest Mode</span>
+          <button class="btn btn-sm btn-primary" id="authBtn" onclick="openAuthModal()">🔑 Sign In / Register</button>
+          <button class="btn btn-sm btn-outline" id="logoutBtn" style="display:none" onclick="logout()">Logout</button>
+        </div>
+      </div>
+      <h1>Pharma <span>Supply Chain</span></h1>
+      <p>Enterprise pharmaceutical management with atomic PostgreSQL transactions, row-level locking, RBAC, and persistent SHA-256 tamper-evident ledger</p>
+    </header>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+      <div class="stat-card"><span class="stat-icon">💊</span><div class="stat-label">Registered Drugs</div><div class="stat-value" id="statDrugs">0</div></div>
+      <div class="stat-card"><span class="stat-icon">🏢</span><div class="stat-label">Inventory Locations</div><div class="stat-value" id="statInventory">0</div></div>
+      <div class="stat-card"><span class="stat-icon">🚚</span><div class="stat-label">Active Shipments</div><div class="stat-value" id="statShipments">0</div></div>
+      <div class="stat-card"><span class="stat-icon">🔗</span><div class="stat-label">Ledger Blocks</div><div class="stat-value" id="statBlocks">0</div></div>
+      <div class="stat-card"><span class="stat-icon">🛡️</span><div class="stat-label">Chain Integrity</div><div class="stat-value" id="statChain">—</div></div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-tab="drugs">💊 Drugs</button>
+      <button class="nav-tab" data-tab="inventory">🏢 Inventory</button>
+      <button class="nav-tab" data-tab="shipments">🚚 Shipments</button>
+      <button class="nav-tab" data-tab="verify">🛡️ Integrity Verify</button>
+      <button class="nav-tab" data-tab="ledger">🔗 Ledger Explorer</button>
+    </nav>
+
+    <!-- Tab: Drugs -->
+    <div class="tab-content active" id="tab-drugs">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><div class="card-title">💊 Register New Drug</div></div>
+          <form id="drugForm" class="form-grid">
+            <div class="form-group"><label class="form-label">Drug Name</label><input class="form-input" id="drugName" placeholder="e.g. Aspirin 500mg" required></div>
+            <div class="form-group"><label class="form-label">Manufacturer</label><input class="form-input" id="drugMfg" placeholder="e.g. PharmaCorp India" required></div>
+            <div class="form-group"><label class="form-label">Batch ID</label><input class="form-input" id="drugBatch" placeholder="e.g. BATCH-2026-001" required></div>
+            <div class="form-group"><label class="form-label">Expiry Date</label><input class="form-input" id="drugExpiry" type="date" required></div>
+            <div class="form-group full-width"><label class="form-label">Description (optional)</label><input class="form-input" id="drugDesc" placeholder="Therapeutic class / formulation details"></div>
+            <div class="form-group full-width"><button type="submit" class="btn btn-primary" style="width:100%">Register Drug</button></div>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">📋 Registered Catalog</div><button class="btn btn-sm btn-primary" onclick="loadDrugs()">↻ Refresh</button></div>
+          <div id="drugList"><div class="empty-state"><div class="icon">💊</div><p>No drugs registered yet</p></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Inventory -->
+    <div class="tab-content" id="tab-inventory">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><div class="card-title">📥 Restock Inventory</div></div>
+          <form id="inventoryForm" class="form-grid">
+            <div class="form-group"><label class="form-label">Select Drug</label><select class="form-select" id="invDrugSelect" required><option value="">Select registered drug</option></select></div>
+            <div class="form-group"><label class="form-label">Warehouse / Location</label><input class="form-input" id="invLocation" placeholder="e.g. Mumbai Central Depot" required></div>
+            <div class="form-group"><label class="form-label">Quantity</label><input class="form-input" id="invQuantity" type="number" min="1" value="500" required></div>
+            <div class="form-group" style="justify-content:flex-end"><button type="submit" class="btn btn-primary" style="width:100%;margin-top:auto">Add Stock</button></div>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">📊 Current Stock Levels</div><button class="btn btn-sm btn-primary" onclick="loadInventory()">↻ Refresh</button></div>
+          <div id="inventoryList"><div class="empty-state"><div class="icon">🏢</div><p>No inventory records found</p></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Shipments -->
+    <div class="tab-content" id="tab-shipments">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><div class="card-title">🚚 Create Shipment (Atomic Transaction)</div></div>
+          <form id="shipmentForm" class="form-grid">
+            <div class="form-group"><label class="form-label">Select Drug</label><select class="form-select" id="shipDrugSelect" required><option value="">Select drug</option></select></div>
+            <div class="form-group"><label class="form-label">Origin Location</label><input class="form-input" id="shipOrigin" placeholder="e.g. Mumbai Central Depot" required></div>
+            <div class="form-group"><label class="form-label">Destination Location</label><input class="form-input" id="shipDest" placeholder="e.g. Delhi Hospital" required></div>
+            <div class="form-group"><label class="form-label">Quantity to Transfer</label><input class="form-input" id="shipQty" type="number" min="1" value="100" required></div>
+            <div class="form-group full-width"><button type="submit" class="btn btn-primary" style="width:100%">Create Shipment</button></div>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">📦 Active Shipments</div><button class="btn btn-sm btn-primary" onclick="loadShipments()">↻ Refresh</button></div>
+          <div id="shipmentList"><div class="empty-state"><div class="icon">📦</div><p>No shipments created yet</p></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Verify -->
+    <div class="tab-content" id="tab-verify">
+      <div class="card" style="text-align:center">
+        <div class="card-title" style="justify-content:center;margin-bottom:16px">🛡️ Supply Chain Data Integrity Verification</div>
+        <p style="color:var(--text-secondary);margin-bottom:24px;max-width:600px;margin-left:auto;margin-right:auto">
+          Recalculates every cryptographic SHA-256 block hash from Genesis to verify that supply-chain events have not been maliciously tampered with in the database.
+        </p>
+        <div style="display:flex;gap:12px;justify-content:center;margin-bottom:24px">
+          <button class="btn btn-success" id="verifyBtn" onclick="verifyChain()" style="font-size:1rem;padding:14px 32px">🔍 Verify Chain Integrity</button>
+          <button class="btn btn-outline" onclick="simulateTampering()" style="font-size:1rem;padding:14px 32px;color:#f87171;border-color:rgba(239,68,68,0.4)">⚠️ Simulate Database Tampering</button>
+        </div>
+        <div id="verifyResult"></div>
+      </div>
+    </div>
+
+    <!-- Tab: Ledger -->
+    <div class="tab-content" id="tab-ledger">
+      <div class="card">
+        <div class="card-header"><div class="card-title">🔗 Persistent Hash-Chain Ledger</div><button class="btn btn-sm btn-primary" onclick="loadLedger()">↻ Refresh</button></div>
+        <p style="color:var(--text-secondary);margin-bottom:16px;font-size:.85rem">Every supply-chain event (drug creation, stock addition, shipment dispatch, checkpoint updates) is immutably chained via SHA-256 hashes.</p>
+        <div id="ledgerView"><div class="empty-state"><div class="icon">🔗</div><p>Loading ledger...</p></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Update Modal -->
+  <div class="modal-overlay" id="shipmentModal" style="display:none">
+    <div class="modal">
+      <div class="modal-title">📦 Shipment Checkpoint Update</div>
+      <div id="shipmentModalBody"></div>
+      <form id="statusUpdateForm" style="margin-top:16px">
+        <input type="hidden" id="modalShipmentId">
+        <div class="form-group"><label class="form-label">Update Status</label>
+          <select class="form-select" id="modalStatusValue" required>
+            <option value="in-transit">In Transit</option>
+            <option value="at-checkpoint">At Checkpoint</option>
+            <option value="delivered">Delivered (Restocks Destination)</option>
+            <option value="recalled">Recalled</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-top:10px"><label class="form-label">Current Checkpoint Location</label>
+          <input class="form-input" id="modalLocationValue" placeholder="e.g. Jaipur Checkpoint" required>
+        </div>
+        <div class="btn-group" style="margin-top:20px">
+          <button type="submit" class="btn btn-primary btn-sm">Update Status</button>
+          <button type="button" class="btn btn-sm" style="background:var(--border-glass);color:var(--text-primary)" onclick="closeModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Auth Modal -->
+  <div class="modal-overlay" id="authModal" style="display:none">
+    <div class="modal">
+      <div class="modal-title" id="authModalTitle">🔑 User Authentication</div>
+      <div style="display:flex;gap:10px;margin-bottom:16px">
+        <button class="btn btn-sm btn-primary" id="tabLoginBtn" onclick="showAuthTab('login')">Sign In</button>
+        <button class="btn btn-sm btn-outline" id="tabRegBtn" onclick="showAuthTab('register')">Register New User</button>
+      </div>
+
+      <!-- Login Form -->
+      <form id="loginForm">
+        <div class="form-group"><label class="form-label">Email Address</label><input class="form-input" id="loginEmail" type="email" placeholder="user@pharma.com" required></div>
+        <div class="form-group" style="margin-top:10px"><label class="form-label">Password</label><input class="form-input" id="loginPassword" type="password" placeholder="••••••••" required></div>
+        <div class="btn-group" style="margin-top:20px">
+          <button type="submit" class="btn btn-primary">Sign In</button>
+          <button type="button" class="btn btn-outline" onclick="closeAuthModal()">Close</button>
+        </div>
+      </form>
+
+      <!-- Register Form -->
+      <form id="registerForm" style="display:none">
+        <div class="form-group"><label class="form-label">Full Name</label><input class="form-input" id="regName" placeholder="Dr. Jane Doe" required></div>
+        <div class="form-group" style="margin-top:10px"><label class="form-label">Email Address</label><input class="form-input" id="regEmail" type="email" placeholder="jane@pharma.com" required></div>
+        <div class="form-group" style="margin-top:10px"><label class="form-label">Password</label><input class="form-input" id="regPassword" type="password" placeholder="Min 6 characters" required></div>
+        <div class="form-group" style="margin-top:10px"><label class="form-label">Role (RBAC)</label>
+          <select class="form-select" id="regRole" required>
+            <option value="MANUFACTURER">MANUFACTURER</option>
+            <option value="DISTRIBUTOR">DISTRIBUTOR</option>
+            <option value="WAREHOUSE">WAREHOUSE</option>
+            <option value="PHARMACY">PHARMACY</option>
+            <option value="ADMIN">ADMIN</option>
+          </select>
+        </div>
+        <div class="btn-group" style="margin-top:20px">
+          <button type="submit" class="btn btn-primary">Register Account</button>
+          <button type="button" class="btn btn-outline" onclick="closeAuthModal()">Close</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/app.js?v=4"></script>
+</body>
+</html>
